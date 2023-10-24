@@ -28,12 +28,14 @@ else:
 # play one step of carrom
 # Input: state, player, action
 # Output: next_state, reward
-def play(action, state):
-    pygame.init()
-    clock = pygame.time.Clock()
-
-    screen = pygame.display.set_mode((BOARD_SIZE, BOARD_SIZE))
-    pygame.display.set_caption("Carrom RL Simulation")
+def play(action, state, render_mode):
+    if render_mode == "human":
+        pygame.init()
+        clock = pygame.time.Clock()
+        screen = pygame.display.set_mode((BOARD_SIZE, BOARD_SIZE))
+        pygame.display.set_caption("Carrom RL Simulation")
+        background = BACKGROUND('use_layout.png', [-30, -30])
+        draw_options = pymunk.pygame_util.DrawOptions(screen)
 
     space = pymunk.Space(threaded=True)
     
@@ -48,36 +50,34 @@ def play(action, state):
     init_space(space)
     init_walls(space)
     pockets = init_pockets(space)
-    background = BACKGROUND('use_layout.png', [-30, -30])
 
-    coins = init_coins(space, state["Black_Locations"], state[
-                       "White_Locations"], state["Red_Location"], passthrough)
+    init_coins(space, state["Black_Locations"], state["White_Locations"], state["Red_Location"], passthrough)
 
-    striker = init_striker(space, passthrough, action, state["Player"])
-
-    draw_options = pymunk.pygame_util.DrawOptions(screen)
+    striker = init_striker(space, passthrough, action, state["Player"])    
 
     ticks = 0
     foul = False
     pocketed = []
     queen_pocketed = False
 
-    while 1:
-        if ticks % render_rate == 0:
-            local_vis = True
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    sys.exit(0)
-                elif event.type == KEYDOWN and event.key == K_ESCAPE:
-                    sys.exit(0)
-        else:
-            local_vis = False
+    while True:
+        if render_mode == "human":
+            if ticks % render_rate == 0:
+                local_vis = True
+                for event in pygame.event.get():
+                    if event.type == QUIT:
+                        sys.exit(0)
+                    elif event.type == KEYDOWN and event.key == K_ESCAPE:
+                        sys.exit(0)
+            else:
+                local_vis = False
 
         ticks += 1
 
-        if local_vis == 1:
-            screen.blit(background.image, background.rect)
-            space.debug_draw(draw_options)
+        if render_mode == "human":
+            if local_vis == True:
+                screen.blit(background.image, background.rect)
+                space.debug_draw(draw_options)
 
         space.step(1 / TIME_STEP)
 
@@ -112,29 +112,30 @@ def play(action, state):
                         space.remove(coin, coin.body)
                         queen_pocketed = True
 
-        if local_vis == 1:
-            font = pygame.font.Font(None, 25)
+        if render_mode == "human":
+            if local_vis == True:
+                font = pygame.font.Font(None, 25)
 
-            text = font.render("Player 1 Score: " +
-                               str(state["Score"][0]), 1, (220, 220, 220))
-            screen.blit(text, (BOARD_SIZE / 3 + 67, 2, 0, 0))
-            text = font.render("Player 2 Score: " +
-                               str(state["Score"][1]), 1, (220, 220, 220))
-            screen.blit(text, (BOARD_SIZE / 3 + 67, 780, 0, 0))
+                text = font.render("Player 1 Score: " +
+                                    str(state["Score"][0]), 1, (220, 220, 220))
+                screen.blit(text, (BOARD_SIZE / 3 + 67, 2, 0, 0))
+                text = font.render("Player 2 Score: " +
+                                    str(state["Score"][1]), 1, (220, 220, 220))
+                screen.blit(text, (BOARD_SIZE / 3 + 67, 780, 0, 0))
 
-            # First tick, draw an arrow representing action
+                # First tick, draw an arrow representing action
 
-            if ticks == 1:
-                force = action[2]
-                angle = action[1]
-                position = action[0]
-                draw_arrow(screen, position, angle, force, state["Player"])
+                if ticks == 1:
+                    force = action[2]
+                    angle = action[1]
+                    position = action[0]
+                    draw_arrow(screen, position, angle, force, state["Player"])
 
-            pygame.display.flip()
-            if ticks == 1:
-                time.sleep(1)
+                pygame.display.flip()
+                if ticks == 1:
+                    time.sleep(1)
 
-            clock.tick()
+                clock.tick()
 
         # Do post processing and return the next State
         if is_ended(space) or ticks > TICKS_LIMIT:
@@ -181,7 +182,6 @@ def play(action, state):
                 state_new["Score"][1] = score
             print("Coins Remaining: ", len(state_new["Black_Locations"]), "B ", len(state_new["White_Locations"]), "W ", len(state_new["Red_Location"]), "R")
             return state_new, score - prevscore
-
 
 def validate(action, state):
     # print "Action Received", action
@@ -259,11 +259,11 @@ def validate(action, state):
     return action
 
 
-def step(action, state):
+def step(action, state, render_mode):
     winner = 0
 
     action = tuplise(action) if state["Player"] == 1 else transform_action(tuplise(action))
-    next_state, reward = play(validate(action, state), state)
+    next_state, reward = play(validate(action, state), state, render_mode)
     
     if state["Queen"] == 1:
         if reward > 0:

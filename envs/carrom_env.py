@@ -6,10 +6,10 @@ from envs.board import *
 
 class carrom_env(gym.Env):
     # human: render the environment to the screen
-    # text: print the observation to the terminal
-    metadata = {"render_modes": ["human", "text"]}
+    # ansi: print the observation to the terminal
+    metadata = {"render_modes": ["human", "ansi"]}
 
-    def __init__(self):
+    def __init__(self, render_mode=None):
         # Black/White/Red: [0, 800] ^ 9 or ^ 1
         # Score: [0, 12] ^ 2
         # Player: 1 or 2
@@ -31,6 +31,9 @@ class carrom_env(gym.Env):
             dtype = float
         )
 
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
+
     def _get_obs(self):
         return self._state
     
@@ -46,7 +49,7 @@ class carrom_env(gym.Env):
         return observation, info
     
     def step(self, action):
-        new_state, winner = step(action, self._state)
+        new_state, winner = step(action, self._state, self.render_mode)
         self._state = new_state
 
         observation = self._get_obs()
