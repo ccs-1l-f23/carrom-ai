@@ -2,7 +2,7 @@
 # by Rohil Shah
 ##########
 
-from envs.utils import *
+from carrom_ai.envs.utils import *
 from _thread import *
 from math import pi
 import time

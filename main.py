@@ -1,6 +1,7 @@
-from envs.carrom_env import carrom_env
+import gymnasium
+import carrom_ai
 
-env = carrom_env()
+env = gymnasium.make('carrom_ai/CarromGym-v0')
 
 observation, info = env.reset()
 while True:
@@ -11,7 +12,7 @@ while True:
     #     action = [float(i) for i in action]
     # else:
     #     action = env.action_space.sample()
-
+    
     action = env.action_space.sample()
     observation, reward, terminated, truncated, info = env.step(action)
 

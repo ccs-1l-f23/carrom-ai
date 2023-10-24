@@ -1,8 +1,8 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
-from envs.utils import *
-from envs.board import *
+from carrom_ai.envs.utils import *
+from carrom_ai.envs.board import *
 
 class carrom_env(gym.Env):
     # human: render the environment to the screen
@@ -19,8 +19,8 @@ class carrom_env(gym.Env):
             "White_Locations": spaces.Box(low = 0, high = 800, shape = (9, 2), dtype=float),
             "Red_Location": spaces.Box(low = 0, high = 800, shape = (1, 2), dtype=float),
             "Score": spaces.Box(low = 0, high = 12, shape = (2,), dtype=int),
-            "Player": spaces.Discrete(1),
-            "Queen": spaces.Discrete(1)
+            "Player": spaces.Discrete(2, start = 1),
+            "Queen": spaces.Discrete(2)
         })
 
         # Actions are 3-tuples: (position, angle, force)
@@ -35,12 +35,24 @@ class carrom_env(gym.Env):
         self.render_mode = render_mode
 
     def _get_obs(self):
-        return self._state
+        observation = {
+            "Black_Locations": np.array(self._state["Black_Locations"]),
+            "White_Locations": np.array(self._state["White_Locations"]),
+            "Red_Location": np.array(self._state["Red_Location"]),
+            "Score": np.array(self._state["Score"]),
+            "Player": np.int64(self._state["Player"]),
+            "Queen": np.int64(self._state["Queen"])
+        }
+
+        for i in ["Black_Locations", "White_Locations", "Red_Location"]:
+            self.observation_space[i] = spaces.Box(low = 0, high = 800, shape = observation[i].shape, dtype = float)
+
+        return observation
     
     def _get_info(self):
         return { "debug-info": "hello world" }
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
         self._state = INITIAL_STATE
 
         observation = self._get_obs()
