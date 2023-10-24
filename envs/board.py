@@ -2,16 +2,12 @@
 # by Rohil Shah
 ##########
 
-from board.utils import *
+from envs.utils import *
 from _thread import *
 from math import pi
 import time
 import sys
-import os
-import socket
 from functools import reduce
-
-start_time = time.time()
 
 # Hardcode the defaults
 render_rate = 10
@@ -31,11 +27,8 @@ else:
 
 # play one step of carrom
 # Input: state, player, action
-# Output: next_state, queen_flag, reward
-# queen_flag denotes that the queen is pocketed and must be covered in the
-# next turn
-
-def play(state, player, action):
+# Output: next_state, reward
+def play(action, state):
     pygame.init()
     clock = pygame.time.Clock()
 
@@ -43,15 +36,9 @@ def play(state, player, action):
     pygame.display.set_caption("Carrom RL Simulation")
 
     space = pymunk.Space(threaded=True)
-    if player == 1:
-        global score1
-        score = score1
-        prevscore = score1
-
-    if player == 2:
-        global score2
-        score = score2
-        prevscore = score2
+    
+    score = state["Score"][0] if state["Player"] == 1 else state["Score"][1]
+    prevscore = state["Score"][0] if state["Player"] == 1 else state["Score"][1]
 
     # pass through object // Dummy Object for handling collisions
     passthrough = pymunk.Segment(space.static_body, (0, 0), (0, 0), 5)
@@ -66,7 +53,7 @@ def play(state, player, action):
     coins = init_coins(space, state["Black_Locations"], state[
                        "White_Locations"], state["Red_Location"], passthrough)
 
-    striker = init_striker(space, passthrough, action, player)
+    striker = init_striker(space, passthrough, action, state["Player"])
 
     draw_options = pymunk.pygame_util.DrawOptions(screen)
 
@@ -74,7 +61,6 @@ def play(state, player, action):
     foul = False
     pocketed = []
     queen_pocketed = False
-    queen_flag = False
 
     while 1:
         if ticks % render_rate == 0:
@@ -100,7 +86,7 @@ def play(state, player, action):
                 foul = True
                 for shape in space.shapes:
                     if shape.color == STRIKER_COLOR:
-                        print("player " + str(player) + ": Foul, Striker pocketed")
+                        print("player " + str(state["Player"]) + ": Foul, Striker pocketed")
                         space.remove(shape, shape.body)
                         break
 
@@ -111,14 +97,14 @@ def play(state, player, action):
                         score += 1
                         pocketed.append((coin, coin.body))
                         space.remove(coin, coin.body)
-                        if player == 1:
+                        if state["Player"] == 1:
                             foul = True
                             print("Foul, player 1 pocketed black")
                     if coin.color == WHITE_COIN_COLOR:
                         score += 1
                         pocketed.append((coin, coin.body))
                         space.remove(coin, coin.body)
-                        if player == 2:
+                        if state["Player"] == 2:
                             foul = True
                             print("Foul, player 2 pocketed white")
                     if coin.color == RED_COIN_COLOR:
@@ -129,15 +115,12 @@ def play(state, player, action):
         if local_vis == 1:
             font = pygame.font.Font(None, 25)
 
-            text = font.render("player 1 Score: " +
-                               str(score1), 1, (220, 220, 220))
-            screen.blit(text, (BOARD_SIZE / 3 + 67, 780, 0, 0))
-            text = font.render("player 2 Score: " +
-                               str(score2), 1, (220, 220, 220))
+            text = font.render("Player 1 Score: " +
+                               str(state["Score"][0]), 1, (220, 220, 220))
             screen.blit(text, (BOARD_SIZE / 3 + 67, 2, 0, 0))
-            text = font.render("Time Elapsed: " +
-                               str(round(time.time() - start_time, 2)), 1, (50, 50, 50))
-            screen.blit(text, (BOARD_SIZE / 3 + 57, 25, 0, 0))
+            text = font.render("Player 2 Score: " +
+                               str(state["Score"][1]), 1, (220, 220, 220))
+            screen.blit(text, (BOARD_SIZE / 3 + 67, 780, 0, 0))
 
             # First tick, draw an arrow representing action
 
@@ -145,7 +128,7 @@ def play(state, player, action):
                 force = action[2]
                 angle = action[1]
                 position = action[0]
-                draw_arrow(screen, position, angle, force, player)
+                draw_arrow(screen, position, angle, force, state["Player"])
 
             pygame.display.flip()
             if ticks == 1:
@@ -156,7 +139,9 @@ def play(state, player, action):
         # Do post processing and return the next State
         if is_ended(space) or ticks > TICKS_LIMIT:
             state_new = {"Black_Locations": [],
-                         "White_Locations": [], "Red_Location": [], "Score": 0}
+                         "White_Locations": [], "Red_Location": [], "Score": state["Score"],
+                         "Player": 2 if state["Player"] == 1 else 1,
+                         "Queen": 0}
 
             for coin in space.shapes:
                 if coin.color == BLACK_COIN_COLOR:
@@ -180,34 +165,37 @@ def play(state, player, action):
 
             if (queen_pocketed == True and foul == False):
                 if len(state_new["Black_Locations"]) + len(state_new["White_Locations"]) == 18:
-                    print("The queen cannot be the first to be pocketed: player ", player)
+                    print("The queen cannot be the first to be pocketed: player ", state["Player"])
                     state_new["Red_Location"].append(ret_pos(state_new))
                 else:
                     if score - prevscore > 0:
                         score += 3
                         print("Queen pocketed and covered in one shot")
                     else:
-                        queen_flag = True
+                        state_new["Queen"] = 1
 
-            print("player " + str(player) + ": Turn ended in ", ticks, " Ticks")
-            state_new["Score"] = score
+            print("player " + str(state["Player"]) + ": Turn ended in ", ticks, " Ticks")
+            if (state["Player"] == 1):
+                state_new["Score"][0] = score
+            else:
+                state_new["Score"][1] = score
             print("Coins Remaining: ", len(state_new["Black_Locations"]), "B ", len(state_new["White_Locations"]), "W ", len(state_new["Red_Location"]), "R")
-            return state_new, queen_flag, score-prevscore
+            return state_new, score - prevscore
 
 
-def validate(action, player, state):
+def validate(action, state):
     # print "Action Received", action
 
     position = action[0]
     angle = action[1]
     force = action[2]
 
-    if (angle < -45 or angle > 225) and player == 1:
+    if (angle < -45 or angle > 225) and state["Player"] == 1:
         print("Invalid angle, taking random angle", end=' ')
         angle = random.randrange(-45, 225)
         print("which is ", angle)
 
-    if (angle > 45 and angle < 135) and player == 2:
+    if (angle > 45 and angle < 135) and state["Player"] == 2:
         print("Invalid angle, taking random angle", end=' ')
         angle = random.randrange(135, 405)
         if angle > 360:
@@ -232,19 +220,12 @@ def validate(action, player, state):
     force = MIN_FORCE + \
         float(max(min(force + gauss(0, noise2), 1), 0)) * MAX_FORCE
 
-    tmp_state = state.copy()
-
-    try:
-        del tmp_state["Score"]
-    except KeyError:
-        pass
-    tmp_state = list(tmp_state.values())
-    tmp_state = reduce(lambda x, y: x + y, tmp_state)
+    tmp_state = state["White_Locations"] + state["Black_Locations"] + state["Red_Location"]
 
     check = 0
     fuse = 10
 
-    if player == 1:
+    if state["Player"] == 1:
         check = 0
         fuse = 10
         while check == 0 and fuse > 0:
@@ -259,7 +240,7 @@ def validate(action, player, state):
                         (float(
                             max(min(float(random.random()) + gauss(0, noise1), 1), 0)) * (460))
 
-    if player == 2:
+    if state["Player"] == 2:
         check = 0
         fuse = 10
         while check == 0 and fuse > 0:
@@ -275,112 +256,46 @@ def validate(action, player, state):
                             max(min(float(random.random()) + gauss(0, noise1), 1), 0)) * (460))
 
     action = (position, angle, force)
-    # print "Final action", action
     return action
 
-# wait until mouse is clicked from pygame and return position of mouse
-def get_move():
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                return [-1, -46, -1]
 
-def main():
-    global score1, score2
+def step(action, state):
     winner = 0
-    reward1 = 0
-    score1 = 0
-    reward2 = 0
-    score2 = 0
 
-    init_board()
-    next_state = INITIAL_STATE
-
-    it = 1
-
-    while it < 200:  # Number of Chances given to each player
-        it += 1
-
-        s = get_move()
-        action = tuplise(s)
-        next_state, queen_flag, reward1 = play(next_state, 1, validate(action, 1, next_state))
-        score1 = score1 + reward1
-
-        while queen_flag or reward1 > 0 and (len(next_state["Black_Locations"]) != 0 and len(next_state["White_Locations"]) != 0):
-            if queen_flag == 1:
-                print("Pocketed Queen, pocket any coin in this turn to cover it")
-
-            s = get_move()
-            action = tuplise(s)
-            old_queen_flag = queen_flag
-            next_state, queen_flag, reward1 = play(next_state, 1, validate(action, 1, next_state))
-
-            if old_queen_flag == 1:
-                if reward1 > 0:
-                    score1 += 3
-                    print("Sucessfully covered the queen")
-                else:
-                    print("Could not cover the queen")
-                    next_state["Red_Location"].append(ret_pos(next_state))
-            score1 = score1 + reward1
-
-        if len(next_state["Black_Locations"]) == 0 or len(next_state["White_Locations"]) == 0:
-            break
-
-        # 2nd player this time i think
-        s = get_move()
-        action = transform_action(tuplise(s))
-
-        next_state, queen_flag, reward2 = play(
-            next_state, 2, validate(action, 2, next_state))
-
-        score2 = score2 + reward2
-        while queen_flag or reward2 > 0 and (len(next_state["Black_Locations"]) != 0 and len(next_state["White_Locations"]) != 0):
-
-            if queen_flag == 1:
-                print("Pocketed Queen, pocket any coin in this turn to cover it")
-
-            # 2nd player again
-            s = get_move()
-            action = transform_action(tuplise(s))
-            old_queen_flag = queen_flag
-            next_state, queen_flag, reward2 = play(next_state, 2, validate(action, 2, next_state))
-
-            if old_queen_flag == 1:
-                if reward2 > 0:
-                    score2 += 3
-                    print("Successfully covered the queen")
-                else:
-                    print("Could not cover the queen")
-                    next_state["Red_Location"].append(ret_pos(next_state))
-
-            score2 = score2 + reward2
-            if len(next_state["Black_Locations"]) == 0 or len(next_state["White_Locations"]) == 0:
-                break
-
-        print("P1 score: ", score1, " P2 score: ", score2, " Turn " + str(it))
-        print("Coins: ", len(next_state["Black_Locations"]), "B ", len(next_state["White_Locations"]), "W ", len(next_state["Red_Location"]), "R")
-        if len(next_state["Black_Locations"]) == 0 or len(next_state["White_Locations"]) == 0:
-            break
-
-    if winner == 2:
-        print("player 1 Timeout")
-    elif winner == 1:
-        print("player 2 Timeout")
-    if winner == 0:
-        if len(next_state["White_Locations"]) == 0:
-            if len(next_state["Red_Location"]) > 0:
-                winner = 2
-            else:
-                winner = 1
-            msg = "Winner is player " + str(winner)
-        elif len(next_state["Black_Locations"]) == 0:
-            if len(next_state["Red_Location"]) > 0:
-                winner = 1
-            else:
-                winner = 2
-            msg = "Winner is player " + str(winner)
+    action = tuplise(action) if state["Player"] == 1 else transform_action(tuplise(action))
+    next_state, reward = play(validate(action, state), state)
+    
+    if state["Queen"] == 1:
+        if reward > 0:
+            next_state["Score"][state["Player"] - 1] += 3
+            print("Sucessfully covered the queen")
         else:
-            msg = "Draw"
-    print(msg)
-    msg += " , "+str(round(time.time() - start_time, 2)) + " s time taken\n"
+            print("Could not cover the queen")
+            next_state["Red_Location"].append(ret_pos(next_state))
+
+    # next_state["Score"] += reward
+
+    if next_state["Queen"] or reward > 0 and (len(next_state["Black_Locations"]) != 0 and len(next_state["White_Locations"]) != 0):
+        if next_state["Queen"] == 1:
+            print("Pocketed Queen, pocket any coin in this turn to cover it")
+        
+        next_state["Player"] = 1 if state["Player"] == 1 else 2
+        
+        return next_state, winner
+
+    if len(next_state["White_Locations"]) == 0:
+        if len(next_state["Red_Location"]) > 0:
+            winner = 2
+        else:
+            winner = 1
+
+        print("Winner is player " + str(winner))
+    elif len(next_state["Black_Locations"]) == 0:
+        if len(next_state["Red_Location"]) > 0:
+            winner = 1
+        else:
+            winner = 2
+        print("Winner is player " + str(winner))
+
+    return next_state, winner
+
