@@ -237,25 +237,30 @@ def is_ended(space):
             return False
     return True
 
-# Mirrors the state for P2
+# Mirrors the state
 def transform_state(state):
     t_state = {}
     t_state["White_Locations"] = []
     t_state["Black_Locations"] = []
     t_state["Red_Location"] = []
     t_state["Score"] = state["Score"]
+    t_state["Player"] = state["Player"]
+    t_state["Queen"] = state["Queen"]
     for pos in state["White_Locations"]:
-        t_state["White_Locations"].append((pos[0], 800 - pos[1]))
+        t_state["White_Locations"].append((800 - pos[0], 800 - pos[1]))
     for pos in state["Black_Locations"]:
-        t_state["Black_Locations"].append((pos[0], 800 - pos[1]))
+        t_state["Black_Locations"].append((800 - pos[0], 800 - pos[1]))
     for pos in state["Red_Location"]:
-        t_state["Red_Location"].append((pos[0], 800 - pos[1]))
+        t_state["Red_Location"].append((800 - pos[0], 800 - pos[1]))
     return t_state
 
 
 # Mirrors action for P2
 def transform_action(action):
-    return (action[0], 360 - action[1], action[2])
+    angle = 180 + action[1]
+    if (angle > 360):
+        angle -= 360
+    return (1 - action[0], angle, action[2])
 
 
 # A helpful visualization for the action
