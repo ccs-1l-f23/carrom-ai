@@ -1,19 +1,12 @@
 import math
 import random
-from carrom_ai.envs.utils import transform_state
 
-def get_coins(observation):
-    if observation["Player"] == 1:
+def get_coins(observation, agent):
+    if agent == "player_0":
         return observation["White_Locations"]
     else:
-        return transform_state(observation)["Black_Locations"]
+       return observation["Black_Locations"]
     
-def get_queen(observation):
-    if observation["Player"] == 1:
-        return observation["Red_Location"]
-    else:
-        return transform_state(observation)["Red_Location"]
-
 # angle [-45, 225] striker to point
 def angle(strikerX, pointX, pointY):
     angle = math.degrees(math.atan2(pointY - 140, pointX - strikerX))
@@ -25,11 +18,11 @@ def angle(strikerX, pointX, pointY):
     else:
         return angle
 
-def com(observation):
+def com(observation, agent):
     # random position [170, 630], high force between [0.25, 0.75]
     action = [random.randint(170, 630), 0, random.uniform(0.25, 0.75)]
     
-    coins = get_coins(observation)
+    coins = get_coins(observation, agent)
 
     # calculate the center of mass of the coins
     center_of_mass = [0, 0]
@@ -38,6 +31,7 @@ def com(observation):
         center_of_mass[1] += coin[1]
     center_of_mass[0] /= len(coins)
     center_of_mass[1] /= len(coins)
+    print(center_of_mass)
 
     # angle striker to center of mass
     action[1] = angle(action[0], center_of_mass[0], center_of_mass[1])
@@ -47,11 +41,11 @@ def com(observation):
     
     return action
 
-def random_coin(observation):
+def random_coin(observation, agent):
     # random position [170, 630], high force between [0.25, 0.75]
     action = [random.randint(170, 630), 0, random.uniform(0.25, 0.75)]
 
-    coins = get_coins(observation)
+    coins = get_coins(observation, agent)
 
     # pick a random coin
     coin = coins[random.randint(0, len(coins) - 1)]
@@ -65,15 +59,15 @@ def random_coin(observation):
 
     return action
 
-def queen(observation):
+def queen(observation, agent):
     # random position [170, 630], high force between [0.25, 0.75]
     action = [random.randint(170, 630), 0, random.uniform(0.25, 0.75)]
 
-    queen = get_queen(observation)
+    queen = observation["Red_Location"]
 
     # if queen is pocketed, shoot randomly
     if len(queen) == 0:
-        return random_coin(observation)
+        return random_coin(observation, agent)
 
     # angle striker to queen
     action[1] = angle(action[0], queen[0][0], queen[0][1])

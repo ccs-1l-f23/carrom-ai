@@ -2,37 +2,46 @@ import multiprocessing
 import os
 import random
 import time
-import gymnasium
-import carrom_ai
+from carrom_env.carrom_env import CarromEnv
 import agents.geometric
 
 NUMBER_OF_GAMES = 10
-PLAYERS = ["random-coin", "random"]
 
-env = gymnasium.make('carrom_ai/CarromGym-v0', render_mode='ansi')
+env = CarromEnv(render_mode=None)
 
 agent_functions = {
-    "random": lambda _: env.action_space.sample(),
-    "center-of-mass": lambda observation: agents.geometric.com(observation),
-    "random-coin": lambda observation: agents.geometric.random_coin(observation),
-    "queen": lambda observation: agents.geometric.queen(observation),
+    "random": lambda _, agent: env.action_space(agent).sample(),
+    "center-of-mass": lambda observation, agent: agents.geometric.com(observation, agent),
+    "random-coin": lambda observation, agent: agents.geometric.random_coin(observation, agent),
+    "queen": lambda observation, agent: agents.geometric.queen(observation, agent),
 }
 
 def play_game(players):
     random.seed((os.getpid() * int(time.time())) % 123456789)
-    observation, info = env.reset()
+
+    env.reset()
+    winner = -1
     moves = 0
-    
-    while True:
-        action = agent_functions[players[observation["Player"] - 1]](observation)
-        observation, reward, terminated, truncated, info = env.step(action)
+
+    for agent in env.agent_iter():
+        observation, reward, termination, truncation, info = env.last()
+
+        if termination or truncation:
+            action = None
+            if (agent == "player_0" and reward == 1) or (agent == "player_1" and reward == -1):
+                winner = 0
+            else:
+                winner = 1
+        else:
+            if agent == "player_0":
+                action = agent_functions[players[0]](observation, agent)
+            else:
+                action = agent_functions[players[1]](observation, agent)
 
         moves += 1
-        if terminated:
-            if (observation["Player"] == 1 and reward == 1) or (observation["Player"] == 2 and reward == -1):
-                return (1, moves)
-            else:
-                return (2, moves)
+        env.step(action)
+    
+    return (winner, moves)
             
 def multiprocessed(players):
     p = multiprocessing.Pool()
@@ -45,7 +54,7 @@ def multiprocessed(players):
     moves = 0
 
     for i in data:
-        if i[0] == 1:
+        if i[0] == 0:
             white_wins += 1
         else:
             black_wins += 1
@@ -60,4 +69,6 @@ if __name__ == '__main__':
             with open("results.txt", "a") as f:
                 f.write(i + " vs " + j + "\n")
                 f.write(str(multiprocessed([i, j])) + "\n")
+
+    # print(multiprocessed(["random-coin", "random-coin"]))
 

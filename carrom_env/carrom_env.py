@@ -42,7 +42,7 @@ class CarromEnv(AECEnv):
         )
     
     def observe(self, agent):
-        if agent == 0:
+        if agent == "player_0":
             return self._state
         else:
             return transform_state(self._state)
