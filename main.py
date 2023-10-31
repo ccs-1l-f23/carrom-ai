@@ -1,20 +1,28 @@
-import gymnasium
-import carrom_ai
+from carrom_env.carrom_env import CarromEnv
 
-env = gymnasium.make('carrom_ai/CarromGym-v0', render_mode='human')
+env = CarromEnv(render_mode="human")
+env.reset()
 
-observation, info = env.reset()
-while True:
-    # if (observation["Player"] == 1):
-    #     print("Player 1's turn")
-    #     # take three values from stdin
-    #     action = input().split()
-    #     action = [float(i) for i in action]
+for agent in env.agent_iter():
+    observation, reward, termination, truncation, info = env.last()
+
+    if agent == "player_0":
+        # print("Player 0's turn")
+        # # take three values from stdin
+        # action = input().split()
+        # action = [float(i) for i in action]
+        action = env.action_space(agent).sample()
+    else:
+        # print("Player 1's turn")
+        # # take three values from stdin
+        # action = input().split()
+        # action = [float(i) for i in action]
+        action = env.action_space(agent).sample()
+
+    # if termination or truncation:
+    #     action = None
     # else:
-    #     action = env.action_space.sample()
+    #     # this is where you would insert your policy
+    #     action = env.action_space(agent).sample()
 
-    action = env.action_space.sample()
-    observation, reward, terminated, truncated, info = env.step(action)
-
-    if terminated:
-        break
+    env.step(action)
