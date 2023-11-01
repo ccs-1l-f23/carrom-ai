@@ -15,21 +15,23 @@ class CarromEnv(AECEnv):
     def __init__(self, render_mode=None):
         # two agents
         self.possible_agents = ["player_" + str(i) for i in range(2)]
+        
+        # Black: [0, 800] ^ 9
+        # White: [0, 800] ^ 9
+        # Red:   [0, 800] ^ 1
+        # Padded with (0, 0)
+        self.observation_spaces = {
+            agent: spaces.Dict({
+                "observation": spaces.Box(low = 0, high = 800, shape = (3, 9, 2), dtype=float)
+            })
+            for agent in self.possible_agents
+        }
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
 
-    # Black/White/Red: [0, 800] ^ 9 or ^ 1
-    # Score: [0, 12] ^ 2
-    # Queen: 0 or 1
     def observation_space(self, agent):
-        return spaces.Dict({
-            "Black_Locations": spaces.Box(low = 0, high = 800, shape = (9, 2), dtype=float),
-            "White_Locations": spaces.Box(low = 0, high = 800, shape = (9, 2), dtype=float),
-            "Red_Location": spaces.Box(low = 0, high = 800, shape = (1, 2), dtype=float),
-            "Score": spaces.Box(low = 0, high = 12, shape = (2,), dtype=int),
-            "Queen": spaces.Discrete(2)
-        })
+        return self.observation_spaces[agent]
 
     # Actions are 3-tuples: (position, angle, force)
     @functools.lru_cache(maxsize=None)
@@ -42,10 +44,19 @@ class CarromEnv(AECEnv):
         )
     
     def observe(self, agent):
-        if agent == "player_0":
-            return self._state
-        else:
-            return transform_state(self._state)
+        state = copy.deepcopy(self._state) if agent == "player_0" else transform_state(self._state)
+
+        for i in ["Black_Locations", "White_Locations", "Red_Location"]:
+            state[i] += [(0, 0) for _ in range(9 - len(state[i]))]
+        
+        return {
+            "observation": np.array([
+                state["White_Locations"] if agent == "player_0" else state["Black_Locations"],
+                state["Black_Locations"] if agent == "player_0" else state["White_Locations"],
+                state["Red_Location"],
+            ])
+        }
+
 
     def reset(self, seed=None, options=None):
         self.agents = self.possible_agents[:]

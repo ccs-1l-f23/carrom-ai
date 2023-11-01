@@ -11,9 +11,9 @@ env = CarromEnv(render_mode=None)
 
 agent_functions = {
     "random": lambda _, agent: env.action_space(agent).sample(),
-    "center-of-mass": lambda observation, agent: agents.geometric.com(observation, agent),
-    "random-coin": lambda observation, agent: agents.geometric.random_coin(observation, agent),
-    "queen": lambda observation, agent: agents.geometric.queen(observation, agent),
+    "center-of-mass": lambda observation, agent: agents.geometric.com(observation),
+    "random-coin": lambda observation, agent: agents.geometric.random_coin(observation),
+    "queen": lambda observation, agent: agents.geometric.queen(observation),
 }
 
 def play_game(players):
@@ -70,5 +70,5 @@ if __name__ == '__main__':
                 f.write(i + " vs " + j + "\n")
                 f.write(str(multiprocessed([i, j])) + "\n")
 
-    # print(multiprocessed(["random-coin", "random-coin"]))
+    # print(multiprocessed(["queen", "queen"]))
 
