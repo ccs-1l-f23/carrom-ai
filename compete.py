@@ -28,7 +28,7 @@ def play_game(players):
 
         if termination or truncation:
             action = None
-            if (agent == "player_0" and reward == 1) or (agent == "player_1" and reward == -1):
+            if (agent == "player_0" and reward == 1) or (agent == "player_1" and reward == 0):
                 winner = 0
             else:
                 winner = 1

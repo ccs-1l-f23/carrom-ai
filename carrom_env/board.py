@@ -281,19 +281,23 @@ def step(action, agent, state, render_mode):
     if len(next_state["White_Locations"]) == 0:
         if len(next_state["Red_Location"]) > 0:
             winner = 1
-            rewards = [-1, 1]
+            # rewards = [-1, 1]
+            rewards = [0, 1]
         else:
             winner = 0
-            rewards = [1, -1]
+            # rewards = [1, -1]
+            rewards = [1, 0]
 
         print("Winner is player " + str(winner))
     elif len(next_state["Black_Locations"]) == 0:
         if len(next_state["Red_Location"]) > 0:
             winner = 0
-            rewards = [1, -1]
+            # rewards = [1, -1]
+            rewards = [1, 0]
         else:
             winner = 1
-            rewards = [-1, 1]
+            # rewards = [-1, 1]
+            rewards = [0, 1]
         print("Winner is player " + str(winner))
 
     return next_state, next_agent, rewards

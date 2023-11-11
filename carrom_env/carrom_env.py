@@ -27,21 +27,27 @@ class CarromEnv(AECEnv):
             for agent in self.possible_agents
         }
 
+        # Actions are 3-tuples: (position, angle, force)
+        self.action_spaces = {
+            agent: spaces.Box(
+                low = np.array([0.0, -45.0, 0.0]),
+                high = np.array([1.0, 225.0, 1.0]),
+                shape = (3,),
+                dtype = float
+            )
+            for agent in self.possible_agents
+        }
+
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
 
+    @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
         return self.observation_spaces[agent]
-
-    # Actions are 3-tuples: (position, angle, force)
+    
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        return spaces.Box(
-            low = np.array([0.0, -45.0, 0.0]),
-            high = np.array([1.0, 225.0, 1.0]),
-            shape = (3,),
-            dtype = float
-        )
+        return self.action_spaces[agent]
     
     def observe(self, agent):
         state = copy.deepcopy(self._state) if agent == "player_0" else transform_state(self._state)
