@@ -11,7 +11,7 @@ from functools import reduce
 
 # Hardcode the defaults
 render_rate = 10
-random.seed(0)
+# random.seed(0)
 noise = 0
 
 if noise == 1:
@@ -86,7 +86,7 @@ def play(action, state, agent, render_mode):
                 foul = True
                 for shape in space.shapes:
                     if shape.color == STRIKER_COLOR:
-                        print("player " + str(agent) + ": Foul, Striker pocketed")
+                        if render_mode == "ansi": print("player " + str(agent) + ": Foul, Striker pocketed")
                         space.remove(shape, shape.body)
                         break
 
@@ -99,14 +99,14 @@ def play(action, state, agent, render_mode):
                         space.remove(coin, coin.body)
                         if agent == 0:
                             foul = True
-                            print("Foul, player 0 pocketed black")
+                            if render_mode == "ansi": print("Foul, player 0 pocketed black")
                     if coin.color == WHITE_COIN_COLOR:
                         score += 1
                         pocketed.append((coin, coin.body))
                         space.remove(coin, coin.body)
                         if agent == 1:
                             foul = True
-                            print("Foul, player 1 pocketed white")
+                            if render_mode == "ansi": print("Foul, player 1 pocketed white")
                     if coin.color == RED_COIN_COLOR:
                         pocketed.append((coin, coin.body))
                         space.remove(coin, coin.body)
@@ -153,7 +153,7 @@ def play(action, state, agent, render_mode):
                     state_new["Red_Location"].append(coin.body.position)
 
             if foul == True:
-                print("Foul.. striker pocketed")
+                if render_mode == "ansi": print("Foul.. striker pocketed")
                 for coin in pocketed:
                     if coin[0].color == BLACK_COIN_COLOR:
                         state_new["Black_Locations"].append(ret_pos(state_new))
@@ -166,21 +166,21 @@ def play(action, state, agent, render_mode):
 
             if (queen_pocketed == True and foul == False):
                 if len(state_new["Black_Locations"]) + len(state_new["White_Locations"]) == 18:
-                    print("The queen cannot be the first to be pocketed: player ", agent)
+                    if render_mode == "ansi": print("The queen cannot be the first to be pocketed: player ", agent)
                     state_new["Red_Location"].append(ret_pos(state_new))
                 else:
                     if score - prevscore > 0:
                         score += 3
-                        print("Queen pocketed and covered in one shot")
+                        if render_mode == "ansi": print("Queen pocketed and covered in one shot")
                     else:
                         state_new["Queen"] = 1
 
-            print("player " + str(agent) + ": Turn ended in ", ticks, " Ticks")
+            if render_mode == "ansi": print("player " + str(agent) + ": Turn ended in ", ticks, " Ticks")
             state_new["Score"][agent] = score
-            print("Coins Remaining: ", len(state_new["Black_Locations"]), "B ", len(state_new["White_Locations"]), "W ", len(state_new["Red_Location"]), "R")
+            if render_mode == "ansi": print("Coins Remaining: ", len(state_new["Black_Locations"]), "B ", len(state_new["White_Locations"]), "W ", len(state_new["Red_Location"]), "R")
             return state_new, next_agent, score - prevscore
 
-def validate(action, state, agent):
+def validate(action, state, agent, render_mode):
     # print "Action Received", action
 
     position = action[0]
@@ -188,23 +188,23 @@ def validate(action, state, agent):
     force = action[2]
 
     if (angle < -45 or angle > 225) and agent == 0:
-        print("Invalid angle, taking random angle", end=' ')
+        if render_mode == "ansi": print("Invalid angle, taking random angle", end=' ')
         angle = random.randrange(-45, 225)
-        print("which is ", angle)
+        if render_mode == "ansi": print("which is ", angle)
 
     if (angle > 45 and angle < 135) and agent == 1:
-        print("Invalid angle, taking random angle", end=' ')
+        if render_mode == "ansi": print("Invalid angle, taking random angle", end=' ')
         angle = random.randrange(135, 405)
         if angle > 360:
             angle = angle - 360
-        print("which is ", angle)
+        if render_mode == "ansi": print("which is ", angle)
 
     if position < 0 or position > 1:
-        print("Invalid position, taking random position")
+        if render_mode == "ansi": print("Invalid position, taking random position")
         position = random.random()
 
     if force < 0 or force > 1:
-        print("Invalid force, taking random position")
+        if render_mode == "ansi": print("Invalid force, taking random position")
         force = random.random()
 
     angle = angle + (random.choice([-1, 1]) * gauss(0, noise3))
@@ -232,7 +232,7 @@ def validate(action, state, agent):
             for coin in tmp_state:
                 if dist((position, 140), coin) < STRIKER_RADIUS + COIN_RADIUS:
                     check = 0
-                    print("Position ", (position, 140), " clashing with a coin, taking random")
+                    if render_mode == "ansi": print("Position ", (position, 140), " clashing with a coin, taking random")
                     position = 170 + \
                         (float(
                             max(min(float(random.random()) + gauss(0, noise1), 1), 0)) * (460))
@@ -247,7 +247,7 @@ def validate(action, state, agent):
             for coin in tmp_state:
                 if dist((position, BOARD_SIZE - 140), coin) < STRIKER_RADIUS + COIN_RADIUS:
                     check = 0
-                    print("Position ", (position, 140), " clashing with a coin, taking random")
+                    if render_mode == "ansi": print("Position ", (position, 140), " clashing with a coin, taking random")
                     position = 170 + \
                         (float(
                             max(min(float(random.random()) + gauss(0, noise1), 1), 0)) * (460))
@@ -259,46 +259,63 @@ def validate(action, state, agent):
 def step(action, agent, state, render_mode):
     winner = 0
     rewards = [0, 0]
+    terminated = False
 
     action = tuplise(action) if agent == 0 else transform_action(tuplise(action))
-    next_state, next_agent, reward = play(validate(action, state, agent), state, agent, render_mode)
+    next_state, next_agent, reward = play(validate(action, state, agent, render_mode), state, agent, render_mode)
+    rewards = [reward if i == agent else 0 for i in range(2)]
     
     if state["Queen"] == 1:
         if reward > 0:
             next_state["Score"][agent] += 3
-            print("Sucessfully covered the queen")
+            if render_mode == "ansi": print("Sucessfully covered the queen")
         else:
-            print("Could not cover the queen")
+            if render_mode == "ansi": print("Could not cover the queen")
             next_state["Red_Location"].append(ret_pos(next_state))
 
     if next_state["Queen"] or reward > 0 and (len(next_state["Black_Locations"]) != 0 and len(next_state["White_Locations"]) != 0):
         if next_state["Queen"] == 1:
-            print("Pocketed Queen, pocket any coin in this turn to cover it")
+            if render_mode == "ansi": print("Pocketed Queen, pocket any coin in this turn to cover it")
         
         # keep same agent for second turn
-        return next_state, agent, rewards
+        # return next_state, agent, rewards
+        return next_state, agent, rewards, terminated
 
     if len(next_state["White_Locations"]) == 0:
         if len(next_state["Red_Location"]) > 0:
             winner = 1
             # rewards = [-1, 1]
-            rewards = [0, 1]
+            # rewards = [0, 1]
+            rewards[0] -= 10
+            rewards[1] += 10
         else:
             winner = 0
             # rewards = [1, -1]
-            rewards = [1, 0]
+            # rewards = [1, 0]
+            rewards[0] += 10
+            rewards[1] -= 10
 
-        print("Winner is player " + str(winner))
+        terminated = True
+        reward += 10 if agent == winner else -10
+        if render_mode == "ansi": print("Winner is player " + str(winner))
     elif len(next_state["Black_Locations"]) == 0:
         if len(next_state["Red_Location"]) > 0:
             winner = 0
             # rewards = [1, -1]
-            rewards = [1, 0]
+            # rewards = [1, 0]
+            rewards[0] += 10
+            rewards[1] -= 10
         else:
             winner = 1
             # rewards = [-1, 1]
-            rewards = [0, 1]
-        print("Winner is player " + str(winner))
+            # rewards = [0, 1]
+            rewards[0] -= 10
+            rewards[1] += 10
+        
+        terminated = True
+        reward += 10 if agent == winner else -10
+        if render_mode == "ansi": print("Winner is player " + str(winner))
 
-    return next_state, next_agent, rewards
+    # return next_state, next_agent, rewards
+    return next_state, next_agent, rewards, terminated
 

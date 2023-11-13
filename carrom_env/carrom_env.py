@@ -7,14 +7,15 @@ from gymnasium import spaces
 
 class CarromEnv(AECEnv):
     metadata = {
-        "render_modes": ["human"],
+        "render_modes": ["human", "ansi"],
         "name": "carrom_env_v0",
         "is_parallelizable": True
     }
 
     def __init__(self, render_mode=None):
         # two agents
-        self.possible_agents = ["player_" + str(i) for i in range(2)]
+        # self.possible_agents = ["player_" + str(i) for i in range(2)]
+        self.possible_agents = ["0", "1"]
         
         # Black: [0, 800] ^ 9
         # White: [0, 800] ^ 9
@@ -50,21 +51,22 @@ class CarromEnv(AECEnv):
         return self.action_spaces[agent]
     
     def observe(self, agent):
-        state = copy.deepcopy(self._state) if agent == "player_0" else transform_state(self._state)
+        state = copy.deepcopy(self._state) if agent == "0" else transform_state(self._state)
 
         for i in ["Black_Locations", "White_Locations", "Red_Location"]:
             state[i] += [(0, 0) for _ in range(9 - len(state[i]))]
         
         return {
             "observation": np.array([
-                state["White_Locations"] if agent == "player_0" else state["Black_Locations"],
-                state["Black_Locations"] if agent == "player_0" else state["White_Locations"],
+                state["White_Locations"] if agent == "0" else state["Black_Locations"],
+                state["Black_Locations"] if agent == "0" else state["White_Locations"],
                 state["Red_Location"],
             ])
         }
 
 
     def reset(self, seed=None, options=None):
+        random.seed(seed)
         self.agents = self.possible_agents[:]
 
         # necessary for last() (in addition to observe())
@@ -87,15 +89,20 @@ class CarromEnv(AECEnv):
             self._was_dead_step(action)
             return
 
-        agent = 0 if self.agent_selection == "player_0" else 1
+        agent = int(self.agent_selection)
+        self._cumulative_rewards[self.agent_selection] = 0
 
-        next_state, next_agent, rewards = step(action, agent, self._state, self.render_mode)
+        # next_state, next_agent, rewards = step(action, agent, self._state, self.render_mode)
+        next_state, next_agent, rewards, terminated = step(action, agent, self._state, self.render_mode)
         self._state = next_state
         if agent != next_agent:
             self.agent_selection = self._agent_selector.next()
+        
+        self.rewards = {agent: reward for agent, reward in zip(self.agents, rewards)}
+        self.terminations = {agent: terminated for agent in self.agents}
 
-        if rewards != [0, 0]:
-            self.rewards = {agent: reward for agent, reward in zip(self.agents, rewards)}
-            self.terminations = {agent: True for agent in self.agents}
+        # if rewards != [0, 0]:
+        #     self.rewards = {agent: reward for agent, reward in zip(self.agents, rewards)}
+        #     self.terminations = {agent: False for agent in self.agents}
         
         self._accumulate_rewards()

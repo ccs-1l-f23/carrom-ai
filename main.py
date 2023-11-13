@@ -1,12 +1,12 @@
 from carrom_env.carrom_env import CarromEnv
 
-env = CarromEnv(render_mode="human")
+env = CarromEnv(render_mode="ansi")
 env.reset()
 
 for agent in env.agent_iter():
     observation, reward, termination, truncation, info = env.last()
 
-    if agent == "player_0":
+    if agent == "0":
         # print("Player 0's turn")
         # # take three values from stdin
         # action = input().split()

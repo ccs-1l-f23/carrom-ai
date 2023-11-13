@@ -28,12 +28,12 @@ def play_game(players):
 
         if termination or truncation:
             action = None
-            if (agent == "player_0" and reward == 1) or (agent == "player_1" and reward == 0):
+            if (agent == "0" and reward == 1) or (agent == "1" and reward == 0):
                 winner = 0
             else:
                 winner = 1
         else:
-            if agent == "player_0":
+            if agent == "0":
                 action = agent_functions[players[0]](observation, agent)
             else:
                 action = agent_functions[players[1]](observation, agent)

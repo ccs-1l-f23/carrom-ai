@@ -4,12 +4,14 @@ Implement self-play using this as a guide: https://github.com/ray-project/ray/bl
 Author: Rohil Shah
 """
 
+import argparse
 import os
 
 import numpy as np
 
 import ray
-from ray import air, tune
+# switched from air to train
+from ray import train, tune
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.env import PettingZooEnv
@@ -24,6 +26,65 @@ from ray.rllib.examples.rl_module.random_rl_module import RandomRLModule
 
 from carrom_env.carrom_env import CarromEnv
 
+def get_cli_args():
+    """Create CLI parser and return parsed arguments"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--framework",
+        choices=["tf", "tf2", "torch"],
+        default="torch",
+        help="The DL framework specifier.",
+    )
+    parser.add_argument("--num-cpus", type=int, default=0)
+    parser.add_argument("--num-workers", type=int, default=2)
+    parser.add_argument(
+        "--from-checkpoint",
+        type=str,
+        default=None,
+        help="Full path to a checkpoint file for restoring a previously saved "
+        "Algorithm state.",
+    )
+    parser.add_argument(
+        "--stop-iters", type=int, default=200, help="Number of iterations to train."
+    )
+    parser.add_argument(
+        "--stop-timesteps",
+        type=int,
+        default=10000000,
+        help="Number of timesteps to train.",
+    )
+    parser.add_argument(
+        "--win-rate-threshold",
+        type=float,
+        default=0.95,
+        help="Win-rate at which we setup another opponent by freezing the "
+        "current main policy and playing against a uniform distribution "
+        "of previously frozen 'main's from here on.",
+    )
+    parser.add_argument(
+        "--num-episodes-human-play",
+        type=int,
+        default=1,
+        help="How many episodes to play against the user on the command "
+        "line after training has finished.",
+    )
+    # parser.add_argument(
+    #     "--as-test",
+    #     action="store_true",
+    #     help="Whether this script should be run as a test: --stop-reward must "
+    #     "be achieved within --stop-timesteps AND --stop-iters.",
+    # )
+    # parser.add_argument(
+    #     "--min-win-rate",
+    #     type=float,
+    #     default=0.5,
+    #     help="Minimum win rate to consider the test passed.",
+    # )
+
+    args = parser.parse_args()
+    print(f"Running with following CLI args: {args}")
+    return args
+
 class SelfPlayCallback(DefaultCallbacks):
     def __init__(self):
         super().__init__()
@@ -36,8 +97,10 @@ class SelfPlayCallback(DefaultCallbacks):
         # Note that normally, one should set up a proper evaluation config,
         # such that evaluation always happens on the already updated policy,
         # instead of on the already used train_batch.
-        main_rew = result["hist_stats"].pop("policy_main_reward")
-        opponent_rew = list(result["hist_stats"].values())[0]
+        print(result["hist_stats"])
+        episodes = result["episodes_this_iter"]
+        main_rew = result["hist_stats"].pop("policy_main_reward")[-episodes:]
+        opponent_rew = list(result["hist_stats"].values())[2][-episodes:]
         assert len(main_rew) == len(opponent_rew)
         won = 0
         for r_main, r_opponent in zip(main_rew, opponent_rew):
@@ -63,7 +126,7 @@ class SelfPlayCallback(DefaultCallbacks):
                 # (start player) and sometimes agent1 (player to move 2nd).
                 return (
                     "main"
-                    if episode.episode_id % 2 == agent_id
+                    if episode.episode_id % 2 == int(agent_id)
                     else "main_v{}".format(
                         np.random.choice(list(range(1, self.current_opponent + 1)))
                     )
@@ -100,7 +163,8 @@ class SelfPlayCallback(DefaultCallbacks):
 
 
 if __name__ == "__main__":
-    ray.init(include_dashboard=False)
+    args = get_cli_args()
+    ray.init(num_cpus=args.num_cpus or None, include_dashboard=True)
 
     register_env("carrom_env", lambda _: PettingZooEnv(CarromEnv()))
 
@@ -108,15 +172,28 @@ if __name__ == "__main__":
         # agent_id = [0|1] -> policy depends on episode ID
         # This way, we make sure that both policies sometimes play agent0
         # (start player) and sometimes agent1 (player to move 2nd).
-        return "main" if episode.episode_id % 2 == agent_id else "random"
+        # print(f"agent_id={agent_id}, episode_id={episode.episode_id}")
+        return "main" if episode.episode_id % 2 == int(agent_id) else "random"
     
     config = (
         PPOConfig()
         .environment("carrom_env")
-        .framework("torch")
+        .framework(args.framework)
         .callbacks(SelfPlayCallback)
-        .rollouts(num_envs_per_worker=5, num_rollout_workers=2)
-        .training(num_sgd_iter=20, model={"fcnet_hiddens": [512, 512]})
+        .rollouts(
+            # envs per worker originally 5
+            num_envs_per_worker=1,
+            num_rollout_workers=args.num_workers,
+            # added from rllib.py (originally 30)
+            rollout_fragment_length="auto",
+            batch_mode="complete_episodes",
+        )
+        .training(
+            num_sgd_iter=20,
+            model={"fcnet_hiddens": [512, 512]},
+            # added from rllib.py (originally 200)
+            train_batch_size=4000
+        )
         .multi_agent(
             # Initial policy map: Random and PPO. This will be expanded
             # to more policy snapshots taken from "main" against which "main"
@@ -149,22 +226,21 @@ if __name__ == "__main__":
     )
     
     stop = {
-        "timesteps_total": 10000000,
-        "training_iteration": 200,
+        "timesteps_total": args.stop_timesteps,
+        "training_iteration": args.stop_iters,
     }
 
     # Train the "main" policy to play really well using self-play.
     results = None
-    from_checkpoint = None
-    if not from_checkpoint:
+    if not args.from_checkpoint:
         create_checkpoints = not bool(os.environ.get("RLLIB_ENABLE_RL_MODULE", False))
         results = tune.Tuner(
             "PPO",
             param_space=config,
-            run_config=air.RunConfig(
+            run_config=train.RunConfig(
                 stop=stop,
                 verbose=2,
-                failure_config=air.FailureConfig(fail_fast="raise"),
+                failure_config=train.FailureConfig(fail_fast="raise"),
                 progress_reporter=CLIReporter(
                     metric_columns={
                         "training_iteration": "iter",
@@ -177,11 +253,51 @@ if __name__ == "__main__":
                     },
                     sort_by_metric=True,
                 ),
-                checkpoint_config=air.CheckpointConfig(
+                checkpoint_config=train.CheckpointConfig(
                     checkpoint_at_end=create_checkpoints,
                     checkpoint_frequency=10 if create_checkpoints else 0,
                 ),
             ),
         ).fit()
     
+    # Restore trained Algorithm (set to non-explore behavior) and play against
+    # human on command line.
+    if args.num_episodes_human_play > 0:
+        num_episodes = 0
+        config.explore = False
+        algo = config.build(env="carrom_env")
+        if args.from_checkpoint:
+            algo.restore(args.from_checkpoint)
+        else:
+            checkpoint = results.get_best_result().checkpoint
+            if not checkpoint:
+                raise ValueError("No last checkpoint found in results!")
+            algo.restore(checkpoint)
+
+        # Play from the command line against the trained agent
+        # in an actual (non-RLlib-wrapped) env.
+        env = CarromEnv(render_mode="human")
+
+        while num_episodes < args.num_episodes_human_play:
+            env.reset()
+            for agent in env.agent_iter():
+                observation, reward, termination, truncation, info = env.last()
+
+                if agent == "0":
+                    print("Player 0's turn")
+                    # take three values from stdin
+                    action = input().split()
+                    action = [float(i) for i in action]
+                else:
+                    action = algo.compute_single_action(observation["observation"], policy_id="main")
+
+                if termination or truncation:
+                        action = None
+
+                env.step(action)
+
+            num_episodes += 1
+
+        algo.stop()
+
     ray.shutdown()
