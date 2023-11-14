@@ -17,6 +17,7 @@ from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.env import PettingZooEnv
 from ray.rllib.examples.policy.random_policy import RandomPolicy
 from ray.rllib.policy.policy import PolicySpec
+from ray.rllib.policy.policy import Policy
 from ray.tune import CLIReporter, register_env
 
 # The new RLModule / Learner API
@@ -177,7 +178,11 @@ if __name__ == "__main__":
     
     config = (
         PPOConfig()
-        .environment("carrom_env")
+        .environment(
+            env="carrom_env",
+            # See multi_agent.policies
+            normalize_actions=False,
+        )
         .framework(args.framework)
         .callbacks(SelfPlayCallback)
         .rollouts(
@@ -200,9 +205,12 @@ if __name__ == "__main__":
             # will then play (instead of "random"). This is done in the
             # custom callback defined above (`SelfPlayCallback`).
             policies={
-                # Our main policy, we'd like to optimize.
-                "main": PolicySpec(),
+                # Our main policy, we'd like to optimize. Normalize results
+                "main": PolicySpec(
+                    config=PPOConfig.overrides(normalize_actions=True)
+                ),
                 # An initial random opponent to play against.
+                # Don't normalize results (we just sample action space)
                 "random": PolicySpec(policy_class=RandomPolicy),
             },
             # Assign agent 0 and 1 randomly to the "main" policy or
@@ -287,15 +295,22 @@ if __name__ == "__main__":
                 observation, reward, termination, truncation, info = env.last()
 
                 if agent == "0":
-                    print("Player 0's turn")
-                    # take three values from stdin
-                    action = input().split()
-                    action = [float(i) for i in action]
+                    # print("Player 0's turn")
+                    # # take three values from stdin
+                    # action = input().split()
+                    # action = [float(i) for i in action]
+                    action = policy.compute_single_action(observation["observation"].reshape(-1))[0]
                 else:
                     action = policy.compute_single_action(observation["observation"].reshape(-1))[0]
 
                 if termination or truncation:
                         action = None
+
+                # remap action from [-1, -1, -1] < action < [1, 1, 1] to [0, -45, 0] < action < [1, 225, 1]
+                # action = np.array(action)
+                # action[0] = (action[0] + 1) / 2
+                # action[1] = ((action[1] + 1) * 135) - 45
+                # action[2] = (action[2] + 1) / 2
 
                 env.step(action)
 
