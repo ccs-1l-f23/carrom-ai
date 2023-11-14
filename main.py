@@ -1,6 +1,6 @@
 from carrom_env.carrom_env import CarromEnv
 
-env = CarromEnv(render_mode="ansi")
+env = CarromEnv(render_mode="human")
 env.reset()
 
 for agent in env.agent_iter():
