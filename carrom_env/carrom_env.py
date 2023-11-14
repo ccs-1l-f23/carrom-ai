@@ -23,7 +23,7 @@ class CarromEnv(AECEnv):
         # Padded with (0, 0)
         self.observation_spaces = {
             agent: spaces.Dict({
-                "observation": spaces.Box(low = 0, high = 800, shape = (3, 9, 2), dtype=float)
+                "observation": spaces.Box(low = 0.0, high = 800.0, shape = (3, 9, 2), dtype=np.float32)
             })
             for agent in self.possible_agents
         }
@@ -31,10 +31,10 @@ class CarromEnv(AECEnv):
         # Actions are 3-tuples: (position, angle, force)
         self.action_spaces = {
             agent: spaces.Box(
-                low = np.array([0.0, -45.0, 0.0]),
-                high = np.array([1.0, 225.0, 1.0]),
+                low = np.array([0.0, -45.0, 0.0], dtype=np.float32),
+                high = np.array([1.0, 225.0, 1.0], dtype=np.float32),
                 shape = (3,),
-                dtype = float
+                dtype = np.float32
             )
             for agent in self.possible_agents
         }
@@ -56,13 +56,13 @@ class CarromEnv(AECEnv):
         for i in ["Black_Locations", "White_Locations", "Red_Location"]:
             state[i] += [(0, 0) for _ in range(9 - len(state[i]))]
         
-        return {
+        return OrderedDict({
             "observation": np.array([
                 state["White_Locations"] if agent == "0" else state["Black_Locations"],
                 state["Black_Locations"] if agent == "0" else state["White_Locations"],
                 state["Red_Location"],
-            ])
-        }
+            ]).astype(np.float32)
+        })
 
 
     def reset(self, seed=None, options=None):

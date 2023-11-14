@@ -222,6 +222,7 @@ if __name__ == "__main__":
                     "random": SingleAgentRLModuleSpec(module_class=RandomRLModule),
                 }
             ),
+            _enable_rl_module_api=True,
         )
     )
     
@@ -265,18 +266,20 @@ if __name__ == "__main__":
     if args.num_episodes_human_play > 0:
         num_episodes = 0
         config.explore = False
-        algo = config.build(env="carrom_env")
+        # algo = config.build(env="carrom_env")
         if args.from_checkpoint:
-            algo.restore(args.from_checkpoint)
+            # algo.restore(args.from_checkpoint)
+            policy = Policy.from_checkpoint(args.from_checkpoint)
         else:
             checkpoint = results.get_best_result().checkpoint
             if not checkpoint:
                 raise ValueError("No last checkpoint found in results!")
-            algo.restore(checkpoint)
+            # algo.restore(checkpoint)
+            policy = Policy.from_checkpoint(checkpoint)
 
         # Play from the command line against the trained agent
         # in an actual (non-RLlib-wrapped) env.
-        env = CarromEnv(render_mode="human")
+        env = CarromEnv(render_mode="ansi")
 
         while num_episodes < args.num_episodes_human_play:
             env.reset()
@@ -289,7 +292,7 @@ if __name__ == "__main__":
                     action = input().split()
                     action = [float(i) for i in action]
                 else:
-                    action = algo.compute_single_action(observation["observation"], policy_id="main")
+                    action = policy.compute_single_action(observation["observation"].reshape(-1))[0]
 
                 if termination or truncation:
                         action = None
@@ -298,6 +301,6 @@ if __name__ == "__main__":
 
             num_episodes += 1
 
-        algo.stop()
+        # algo.stop()
 
     ray.shutdown()
