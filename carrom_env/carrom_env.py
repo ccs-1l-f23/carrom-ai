@@ -83,6 +83,7 @@ class CarromEnv(AECEnv):
 
     def step(self, action):
         # denormalize angle
+        action = action.copy()
         action[1] = (action[1] * 270) - 45
 
         # steps over terminated agent (accepts None as action)
