@@ -31,8 +31,8 @@ class CarromEnv(AECEnv):
         # Actions are 3-tuples: (position, angle, force)
         self.action_spaces = {
             agent: spaces.Box(
-                low = np.array([0.0, -45.0, 0.0], dtype=np.float32),
-                high = np.array([1.0, 225.0, 1.0], dtype=np.float32),
+                low = 0.0,
+                high = 1.0,
                 shape = (3,),
                 dtype = np.float32
             )
@@ -81,8 +81,10 @@ class CarromEnv(AECEnv):
         self._agent_selector = agent_selector(self.agents)
         self.agent_selection = self._agent_selector.next()
 
-
     def step(self, action):
+        # denormalize angle
+        action[1] = (action[1] * 270) - 45
+
         # steps over terminated agent (accepts None as action)
         if (self.terminations[self.agent_selection]
             or self.truncations[self.agent_selection]):
